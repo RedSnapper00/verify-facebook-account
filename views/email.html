@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge, chrome=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1, minimum-scale=1"
+    />
+    <title>Checkin App Verify Email</title>
+  </head>
+  <body>
+    <form id="login_success" method="post" action="/verify">
+      <input id="csrf" type="hidden" name="csrf" />
+      <input id="code" type="hidden" name="code" />
+    </form>
+
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+    <script src="https://sdk.accountkit.com/en_US/sdk.js"></script>
+    <script>
+      // awaitPostMessage() This is needed as window.postMessage is not working gracefully for android
+      function awaitPostMessage() {
+        var isReactNativePostMessageReady = !!window.originalPostMessage;
+        var queue = [];
+        var currentPostMessageFn = function store(message) {
+          if (queue.length > 100) queue.shift();
+          queue.push(message);
+        };
+        if (!isReactNativePostMessageReady) {
+          var originalPostMessage = window.postMessage;
+          Object.defineProperty(window, "postMessage", {
+            configurable: true,
+            enumerable: true,
+            get: function() {
+              return currentPostMessageFn;
+            },
+            set: function(fn) {
+              currentPostMessageFn = fn;
+              isReactNativePostMessageReady = true;
+              setTimeout(sendQueue, 0);
+            }
+          });
+          window.postMessage.toString = function() {
+            return String(originalPostMessage);
+          };
+        }
+
+        function sendQueue() {
+          while (queue.length > 0) window.postMessage(queue.shift());
+        }
+      }
+
+      awaitPostMessage();
+      function loadAccountKit() {
+        AccountKit.init({
+          appId: "<%= appId %>", //253723441796960
+          state: "<%= csrf %>", // This should be your XSRF_TOKEN
+          version: "<%= version %>",
+          display: "modal",
+          debug: true, // Helps in understanding what went wrong.
+          fbAppEventsEnabled: true,
+          redirect: "https://anhdv0.ml/verified"
+        });
+
+        AccountKit.login("EMAIL", {}, function(response) {
+          if (response.status === "PARTIALLY_AUTHENTICATED") {
+            $.post("/verify", {csrf: response.state, code: response.code}, function (data) {
+              let ret = {
+                logged_in: true,
+                data: data
+              }
+              window.postMessage(JSON.stringify(ret));
+              console.log(ret);
+            });
+          } else {
+            window.postMessage(JSON.stringify({logged_id: false, data: null}));
+            console.log("not login");
+          }
+        });
+      }
+      setTimeout(loadAccountKit, 1000);
+    </script>
+  </body>
+</html>
